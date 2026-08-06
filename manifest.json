@@ -1,0 +1,19 @@
+{
+  "name": "受け止め箱",
+  "short_name": "受け止め箱",
+  "description": "割り込みを一行で受け止めて、後でまとめて片づけるための箱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F1F2ED",
+  "theme_color": "#4C6B54",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%234C6B54'/%3E%3Cpath d='M180 120h152a18 18 0 0 1 18 18v258l-94-64-94 64V138a18 18 0 0 1 18-18z' fill='%23fff'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

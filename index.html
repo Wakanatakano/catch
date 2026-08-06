@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>受け止め箱</title>
+<meta name="theme-color" content="#F1F2ED" />
+<!-- アプリとしてインストールしたときの見た目設定 -->
+<link rel="manifest" href="./manifest.json" />
+<!-- ホーム画面追加時にアプリ風（フルスクリーン・独立表示）にする設定 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="受け止め箱" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="mobile-web-app-capable" content="yes" />
+<!-- ホーム画面アイコン（しおり型のSVG） -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%234C6B54'/%3E%3Cpath d='M64 44h52a6 6 0 0 1 6 6v90l-32-22-32 22V50a6 6 0 0 1 6-6z' fill='%23fff'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234C6B54'/%3E%3Cpath d='M11 8h10a1 1 0 0 1 1 1v16l-6-4-6 4V9a1 1 0 0 1 1-1z' fill='%23fff'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --paper:#F1F2ED; --card:#FBFBF8; --ink:#262A21; --inkSoft:#6B7064;
+    --accent:#4C6B54; --accentSoft:#E1E8DB; --amber:#A9702F; --line:#DFE0D8;
+    --jp:'Hiragino Maru Gothic ProN','Hiragino Kaku Gothic ProN','Yu Gothic Medium','Noto Sans JP',sans-serif;
+    --lat:'Avenir Next','Avenir','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--jp);
+    min-height:100vh; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:28px 18px 60px;}
+  input::placeholder{color:var(--inkSoft); opacity:.8;}
+  input{font-family:var(--jp);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  button{cursor:pointer; font-family:var(--jp);}
+
+  .head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px;}
+  .head h1{font-size:20px; font-weight:700; letter-spacing:.02em; margin:0;}
+  .count{font-family:var(--lat); font-size:12px; color:var(--inkSoft);}
+
+  /* 主役：しおり */
+  .mark{display:flex; background:var(--accent); border-radius:14px; overflow:hidden;
+    box-shadow:0 6px 20px rgba(38,42,33,.10); margin-bottom:22px;}
+  .mark .ribbon{width:8px; background:rgba(255,255,255,.35);}
+  .mark .body{flex:1; padding:14px 16px;}
+  .mark .eyebrow{font-family:var(--lat); font-size:11px; letter-spacing:.14em;
+    color:rgba(255,255,255,.75); margin-bottom:6px;}
+  .mark input{width:100%; background:transparent; border:none; color:#fff;
+    font-size:17px; font-weight:600; padding:0;}
+
+  /* 投入 */
+  .add{display:flex; gap:8px; margin-bottom:10px;}
+  .add input{flex:1; background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:13px 14px; font-size:16px; color:var(--ink);}
+  .add button{background:var(--accent); color:#fff; border:none; border-radius:12px;
+    width:50px; display:grid; place-items:center;}
+  .hint{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--inkSoft); margin:0 0 24px 2px;}
+
+  .sec-head{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .sec-head h2{font-size:13px; font-weight:700; letter-spacing:.08em; color:var(--inkSoft); margin:0;}
+  .badge{font-family:var(--lat); font-size:12px; font-weight:700; color:var(--inkSoft);}
+  .badge.heavy{color:var(--amber); background:rgba(169,112,47,.12); border-radius:20px; padding:1px 8px;}
+  .heavy-note{font-size:12px; color:var(--amber);}
+
+  ul.list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .row{display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--line);
+    border-radius:12px; padding:11px 10px 11px 14px;}
+  .row.task{background:var(--accentSoft); border-color:transparent;}
+  .row .text{flex:1; font-size:15px; line-height:1.45;}
+  .row-btn{width:34px; height:34px; border-radius:9px; flex-shrink:0; display:grid; place-items:center;
+    border:none; transition:opacity .15s;}
+  .row-btn.accent{color:#fff; background:var(--accent);}
+  .row-btn.soft{color:var(--accent); background:var(--accentSoft);}
+  .row-btn.ghost{color:var(--inkSoft); background:transparent; border:1px solid var(--line);}
+  .row-btn svg{width:17px; height:17px;}
+
+  .empty{border:1px dashed var(--line); border-radius:12px; padding:22px 16px;
+    text-align:center; color:var(--inkSoft); font-size:14px;}
+
+  .tasks-wrap{margin-top:26px;}
+  .tasks-wrap h2{font-size:13px; font-weight:700; letter-spacing:.08em; color:var(--inkSoft); margin:0 0 10px;}
+
+  .rules-toggle{margin-top:30px; width:100%; display:flex; align-items:center; justify-content:space-between;
+    background:transparent; border:none; border-top:1px solid var(--line); padding:16px 2px 0;
+    color:var(--inkSoft); font-size:14px;}
+  .rules-toggle svg{width:18px; height:18px; transition:transform .2s;}
+  .rules-toggle.open svg{transform:rotate(180deg);}
+  ol.rules{margin:12px 0 0; padding-left:20px; color:var(--ink); font-size:14px; line-height:1.7;}
+  .hidden{display:none;}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>受け止め箱</h1>
+    <span class="count" id="count">今日 0 件 片づけた</span>
+  </div>
+
+  <!-- しおり（次にやること） -->
+  <section class="mark">
+    <div class="ribbon"></div>
+    <div class="body">
+      <div class="eyebrow">いま、ここ →</div>
+      <input id="breadcrumb" placeholder="次にやること（例：MoRo中間報告 スライド12から）" />
+    </div>
+  </section>
+
+  <!-- 割り込み投入 -->
+  <div class="add">
+    <input id="draft" placeholder="割り込みを一行で…" />
+    <button id="addBtn" aria-label="箱に入れる">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+  <p class="hint">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+    入れたらすぐ元の作業に戻る。仕分けは後でまとめて。
+  </p>
+
+  <!-- 未処理 -->
+  <div class="sec-head">
+    <h2>未処理</h2>
+    <span class="badge" id="inboxBadge">0</span>
+    <span class="heavy-note hidden" id="heavyNote">そろそろ箱を空に</span>
+  </div>
+  <ul class="list" id="inboxList"></ul>
+  <div class="empty hidden" id="inboxEmpty">箱は空。割り込みが来たら、対応する前にここへ一行。</div>
+
+  <!-- タスク化したもの -->
+  <div class="tasks-wrap hidden" id="tasksWrap">
+    <h2>タスクにした</h2>
+    <ul class="list" id="taskList"></ul>
+  </div>
+
+  <!-- 即断ルール -->
+  <button class="rules-toggle" id="rulesToggle">
+    即断ルール（迷ったら見る）
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <ol class="rules hidden" id="rulesList">
+    <li>30秒で終わる → その場でやる</li>
+    <li>それ以外 → 箱に一行落として、今の作業に戻る</li>
+    <li>本当に緊急だけ → しおりに「次：○○から」を書いてから対応</li>
+    <li>昼前と夕方の2回、箱を空にする</li>
+  </ol>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "catchbox:v1";
+  var today = function(){ return new Date().toISOString().slice(0,10); };
+
+  // ── データ読み書き（保存できない環境でも落ちないようtry/catch）──
+  var state = { breadcrumb:"", items:[], done:{ date:today(), count:0 } };
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var s = JSON.parse(raw);
+      state.breadcrumb = s.breadcrumb || "";
+      state.items = Array.isArray(s.items) ? s.items : [];
+      state.done = s.done || state.done;
+      // 日付が変わっていたら「今日片づけた」だけリセット（他は持ち越し）
+      if (state.done.date !== today()) state.done = { date:today(), count:0 };
+    }
+  } catch(e) { /* 保存不可の環境：メモリ上で動作 */ }
+
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+  }
+
+  // ── SVGアイコン ──
+  var ICON = {
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+    x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+  };
+
+  // 要素参照
+  var $ = function(id){ return document.getElementById(id); };
+  var elBread=$("breadcrumb"), elDraft=$("draft"), elCount=$("count"),
+      elInbox=$("inboxList"), elInboxEmpty=$("inboxEmpty"), elBadge=$("inboxBadge"),
+      elHeavy=$("heavyNote"), elTasksWrap=$("tasksWrap"), elTasks=$("taskList");
+
+  // ── 操作 ──
+  function add(){
+    var t = elDraft.value.trim();
+    if(!t) return;
+    state.items.unshift({ id:Date.now(), text:t, status:"inbox" });
+    elDraft.value=""; save(); render(); elDraft.focus();
+  }
+  function promote(id){ // タスク化
+    state.items.forEach(function(i){ if(i.id===id) i.status="task"; });
+    save(); render();
+  }
+  function finish(id){ // 済（今日カウント+1）
+    state.items = state.items.filter(function(i){ return i.id!==id; });
+    if(state.done.date!==today()) state.done={date:today(),count:0};
+    state.done.count++; save(); render();
+  }
+  function drop(id){ // 消す
+    state.items = state.items.filter(function(i){ return i.id!==id; });
+    save(); render();
+  }
+
+  // ── 行を組み立てる（DRY：未処理／タスクで共通化）──
+  function makeRow(item, isTask){
+    var li = document.createElement("li");
+    li.className = "row" + (isTask ? " task" : "");
+    if(isTask){
+      var mark = document.createElement("span");
+      mark.style.cssText="flex-shrink:0;color:var(--accent);display:flex;";
+      mark.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+      li.appendChild(mark);
+    }
+    var span = document.createElement("span");
+    span.className="text"; span.textContent=item.text;
+    li.appendChild(span);
+
+    li.appendChild(btn("済","accent",ICON.check,function(){ finish(item.id); }));
+    if(!isTask) li.appendChild(btn("タスク化","soft",ICON.arrow,function(){ promote(item.id); }));
+    li.appendChild(btn("消す","ghost",ICON.x,function(){ drop(item.id); }));
+    return li;
+  }
+  function btn(label,tone,svg,onClick){
+    var b=document.createElement("button");
+    b.className="row-btn "+tone; b.setAttribute("aria-label",label); b.title=label;
+    b.innerHTML=svg; b.addEventListener("click",onClick);
+    return b;
+  }
+
+  // ── 描画 ──
+  function render(){
+    var inbox = state.items.filter(function(i){ return i.status==="inbox"; });
+    var tasks = state.items.filter(function(i){ return i.status==="task"; });
+
+    elCount.textContent = "今日 " + (state.done.count||0) + " 件 片づけた";
+
+    // 未処理
+    elBadge.textContent = inbox.length;
+    var heavy = inbox.length>=5;
+    elBadge.className = "badge" + (heavy?" heavy":"");
+    elHeavy.classList.toggle("hidden", !heavy);
+    elInbox.innerHTML="";
+    inbox.forEach(function(i){ elInbox.appendChild(makeRow(i,false)); });
+    elInboxEmpty.classList.toggle("hidden", inbox.length!==0);
+
+    // タスク
+    elTasksWrap.classList.toggle("hidden", tasks.length===0);
+    elTasks.innerHTML="";
+    tasks.forEach(function(i){ elTasks.appendChild(makeRow(i,true)); });
+  }
+
+  // ── イベント配線 ──
+  elBread.value = state.breadcrumb;
+  elBread.addEventListener("input", function(){ state.breadcrumb=elBread.value; save(); });
+  $("addBtn").addEventListener("click", add);
+  elDraft.addEventListener("keydown", function(e){ if(e.key==="Enter") add(); });
+  $("rulesToggle").addEventListener("click", function(){
+    this.classList.toggle("open"); $("rulesList").classList.toggle("hidden");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
