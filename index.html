@@ -71,22 +71,27 @@
   .row{display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--line);
     border-radius:12px; padding:11px 10px 11px 14px;}
   .row.task{background:var(--accentSoft); border-color:transparent;}
-  .row .text{flex:1; font-size:15px; line-height:1.45;}
+  .row .text{flex:1; min-width:0; font-size:15px; line-height:1.45; overflow-wrap:anywhere;}
   .row-btn{width:34px; height:34px; border-radius:9px; flex-shrink:0; display:grid; place-items:center;
     border:none; transition:opacity .15s;}
   .row-btn.accent{color:#fff; background:var(--accent);}
   .row-btn.soft{color:var(--accent); background:var(--accentSoft);}
   .row-btn.ghost{color:var(--inkSoft); background:transparent; border:1px solid var(--line);}
+  .row-btn:disabled{opacity:.3; cursor:default;}
   .row-btn svg{width:17px; height:17px;}
+
+  /* 完了済み履歴の行 */
+  .hist-row .text{color:var(--inkSoft);}
+  .hist-time{font-family:var(--lat); font-size:11px; color:var(--inkSoft); flex-shrink:0; margin-left:8px;}
 
   .empty{border:1px dashed var(--line); border-radius:12px; padding:22px 16px;
     text-align:center; color:var(--inkSoft); font-size:14px; line-height:1.5;}
 
-  .rules-toggle{margin-top:30px; width:100%; display:flex; align-items:center; justify-content:space-between;
+  .fold-toggle{margin-top:30px; width:100%; display:flex; align-items:center; justify-content:space-between;
     background:transparent; border:none; border-top:1px solid var(--line); padding:16px 2px 0;
     color:var(--inkSoft); font-size:14px;}
-  .rules-toggle svg{width:18px; height:18px; transition:transform .2s;}
-  .rules-toggle.open svg{transform:rotate(180deg);}
+  .fold-toggle svg{width:18px; height:18px; transition:transform .2s; flex-shrink:0;}
+  .fold-toggle.open svg{transform:rotate(180deg);}
   ol.rules{margin:12px 0 0; padding-left:20px; color:var(--ink); font-size:14px; line-height:1.7;}
   .hidden{display:none;}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
@@ -138,14 +143,25 @@
       <div class="sec-head">
         <h2>タスクにした</h2>
         <span class="badge" id="taskBadge">0</span>
+        <span style="font-size:11px;color:var(--inkSoft);">↑↓で優先順</span>
       </div>
       <ul class="list" id="taskList"></ul>
       <div class="empty hidden" id="taskEmpty">未処理から「→（タスク化）」したものが、ここに並ぶ。</div>
     </section>
   </div>
 
+  <!-- 完了済み（直近30件） -->
+  <button class="fold-toggle" id="histToggle">
+    <span>完了済み（直近30件）　<span class="badge" id="histBadge">0</span></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div id="histWrap" class="hidden" style="margin-top:12px;">
+    <ul class="list" id="histList"></ul>
+    <div class="empty hidden" id="histEmpty">まだ完了済みはない。「済」を押すと、ここに記録される（最新30件）。</div>
+  </div>
+
   <!-- 即断ルール -->
-  <button class="rules-toggle" id="rulesToggle">
+  <button class="fold-toggle" id="rulesToggle">
     即断ルール（迷ったら見る）
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>
@@ -163,8 +179,14 @@
   var KEY = "catchbox:v1";
   var today = function(){ return new Date().toISOString().slice(0,10); };
 
+  // 完了時刻の表示用（MM/DD HH:MM）
+  function fmtTime(ms){
+    var d=new Date(ms), p=function(n){ return (n<10?"0":"")+n; };
+    return p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+  }
+
   // ── データ読み書き（保存できない環境でも落ちないようtry/catch）──
-  var state = { breadcrumb:"", items:[], done:{ date:today(), count:0 } };
+  var state = { breadcrumb:"", items:[], history:[], done:{ date:today(), count:0 } };
   try {
     var raw = localStorage.getItem(KEY);
     if (raw) {
@@ -173,6 +195,7 @@
       if (typeof s.breadcrumb === "string") state.breadcrumb = s.breadcrumb;
       else if (Array.isArray(s.priorities)) state.breadcrumb = s.priorities[0] || "";
       state.items = Array.isArray(s.items) ? s.items : [];
+      state.history = Array.isArray(s.history) ? s.history : [];
       state.done = s.done || state.done;
       // 日付が変わっていたら「今日片づけた」だけリセット（他は持ち越し）
       if (state.done.date !== today()) state.done = { date:today(), count:0 };
@@ -187,6 +210,8 @@
   var ICON = {
     check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
     arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+    up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
+    down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
     x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
   };
 
@@ -194,7 +219,8 @@
   var $ = function(id){ return document.getElementById(id); };
   var elBread=$("breadcrumb"), elDraft=$("draft"), elCount=$("count"),
       elInbox=$("inboxList"), elInboxEmpty=$("inboxEmpty"), elBadge=$("inboxBadge"),
-      elHeavy=$("heavyNote"), elTasks=$("taskList"), elTaskBadge=$("taskBadge"), elTaskEmpty=$("taskEmpty");
+      elHeavy=$("heavyNote"), elTasks=$("taskList"), elTaskBadge=$("taskBadge"), elTaskEmpty=$("taskEmpty"),
+      elHist=$("histList"), elHistEmpty=$("histEmpty"), elHistBadge=$("histBadge");
 
   // ── 操作 ──
   function add(){
@@ -207,40 +233,75 @@
     state.items.forEach(function(i){ if(i.id===id) i.status="task"; });
     save(); render();
   }
-  function finish(id){ // 済（今日カウント+1）
+  function finish(id){ // 済：完了履歴に記録して今日カウント+1
+    var item=null;
+    state.items.forEach(function(i){ if(i.id===id) item=i; });
     state.items = state.items.filter(function(i){ return i.id!==id; });
+    if(item){
+      state.history.unshift({ id:item.id, text:item.text, at:Date.now() });
+      if(state.history.length>30) state.history = state.history.slice(0,30); // 直近30件だけ保持
+    }
     if(state.done.date!==today()) state.done={date:today(),count:0};
     state.done.count++; save(); render();
   }
-  function drop(id){ // 消す
+  function drop(id){ // 消す（履歴に残さない）
     state.items = state.items.filter(function(i){ return i.id!==id; });
+    save(); render();
+  }
+  function moveTask(id, dir){ // dir: -1=上へ / +1=下へ。タスク同士の並びだけ入れ替える
+    var idxs=[]; // state.items の中でタスクが占める位置
+    state.items.forEach(function(it, idx){ if(it.status==="task") idxs.push(idx); });
+    var pos=-1;
+    for(var k=0;k<idxs.length;k++){ if(state.items[idxs[k]].id===id){ pos=k; break; } }
+    if(pos===-1) return;
+    var target=pos+dir;
+    if(target<0 || target>=idxs.length) return; // 端では何もしない
+    var a=idxs[pos], b=idxs[target], tmp=state.items[a];
+    state.items[a]=state.items[b]; state.items[b]=tmp;
     save(); render();
   }
 
   // ── 行を組み立てる（DRY：未処理／タスクで共通化）──
-  function makeRow(item, isTask){
+  function makeRow(item, isTask, idx, total){
     var li = document.createElement("li");
     li.className = "row" + (isTask ? " task" : "");
-    if(isTask){
-      var mark = document.createElement("span");
-      mark.style.cssText="flex-shrink:0;color:var(--accent);display:flex;";
-      mark.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
-      li.appendChild(mark);
-    }
     var span = document.createElement("span");
     span.className="text"; span.textContent=item.text;
     li.appendChild(span);
 
+    if(isTask){
+      // 並べ替え（↑↓）：端のボタンは無効化
+      li.appendChild(btn("上へ","ghost",ICON.up,function(){ moveTask(item.id,-1); }, idx===0));
+      li.appendChild(btn("下へ","ghost",ICON.down,function(){ moveTask(item.id,1); }, idx===total-1));
+    }
     li.appendChild(btn("済","accent",ICON.check,function(){ finish(item.id); }));
     if(!isTask) li.appendChild(btn("タスク化","soft",ICON.arrow,function(){ promote(item.id); }));
     li.appendChild(btn("消す","ghost",ICON.x,function(){ drop(item.id); }));
     return li;
   }
-  function btn(label,tone,svg,onClick){
+  function btn(label,tone,svg,onClick,disabled){
     var b=document.createElement("button");
     b.className="row-btn "+tone; b.setAttribute("aria-label",label); b.title=label;
-    b.innerHTML=svg; b.addEventListener("click",onClick);
+    b.innerHTML=svg;
+    if(disabled){ b.disabled=true; } else { b.addEventListener("click",onClick); }
     return b;
+  }
+
+  // 完了履歴の行（表示専用）
+  function makeHistRow(e){
+    var li=document.createElement("li");
+    li.className="row hist-row";
+    var ck=document.createElement("span");
+    ck.style.cssText="flex-shrink:0;color:var(--accent);display:flex;";
+    ck.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    li.appendChild(ck);
+    var span=document.createElement("span");
+    span.className="text"; span.textContent=e.text;
+    li.appendChild(span);
+    var t=document.createElement("span");
+    t.className="hist-time"; t.textContent=fmtTime(e.at);
+    li.appendChild(t);
+    return li;
   }
 
   // ── 描画 ──
@@ -259,11 +320,17 @@
     inbox.forEach(function(i){ elInbox.appendChild(makeRow(i,false)); });
     elInboxEmpty.classList.toggle("hidden", inbox.length!==0);
 
-    // タスク（右）：カラムは常に表示、空のときは案内を出す
+    // タスク（右）：↑↓で並べ替え
     elTaskBadge.textContent = tasks.length;
     elTasks.innerHTML="";
-    tasks.forEach(function(i){ elTasks.appendChild(makeRow(i,true)); });
+    tasks.forEach(function(i, k){ elTasks.appendChild(makeRow(i,true,k,tasks.length)); });
     elTaskEmpty.classList.toggle("hidden", tasks.length!==0);
+
+    // 完了済み（直近30件）
+    elHistBadge.textContent = state.history.length;
+    elHist.innerHTML="";
+    state.history.forEach(function(e){ elHist.appendChild(makeHistRow(e)); });
+    elHistEmpty.classList.toggle("hidden", state.history.length!==0);
   }
 
   // ── イベント配線 ──
@@ -271,6 +338,9 @@
   elBread.addEventListener("input", function(){ state.breadcrumb=elBread.value; save(); });
   $("addBtn").addEventListener("click", add);
   elDraft.addEventListener("keydown", function(e){ if(e.key==="Enter") add(); });
+  $("histToggle").addEventListener("click", function(){
+    this.classList.toggle("open"); $("histWrap").classList.toggle("hidden");
+  });
   $("rulesToggle").addEventListener("click", function(){
     this.classList.toggle("open"); $("rulesList").classList.toggle("hidden");
   });
